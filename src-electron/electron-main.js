@@ -45,15 +45,15 @@ function createWindow () {
 
   mainWindow.setMenu(null)
   mainWindow.loadURL(process.env.APP_URL)
-  // if (process.env.DEBUGGING) {
+  if (process.env.DEBUGGING) {
   // if on DEV or Production with debug enabled
-  mainWindow.webContents.openDevTools()
-  /* } else {
+    mainWindow.webContents.openDevTools()
+  } else {
     // we're on production; no access to devtools pls
     mainWindow.webContents.on('devtools-opened', () => {
       mainWindow.webContents.closeDevTools()
     })
-  } */
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -94,7 +94,14 @@ function createWindow () {
   })
 
   ipcMain.on('updateForceProxy', (event, arg) => {
-    engine.config.useRealIP = arg.newVal
+    engine.config.useRealIP = !arg.newVal
+  })
+
+  ipcMain.on('updateStrategy', (event, arg) => {
+    engine.setExecutorStartegy(arg.newVal)
+    engine.executionStartegy.on('atack', (data) => window.webContents.send('atack', data))
+    engine.executionStartegy.on('error', (data) => window.webContents.send('error', data))
+    engine.executionStartegy.on('automatic_executorsCountUpdate', (data) => window.webContents.send('executorsCountUpdate', data))
   })
 
   ipcMain.on('updateMaxDosersCount', (event, arg) => {

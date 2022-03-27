@@ -150,7 +150,7 @@ export default defineComponent({
     },
     realtimeSuccessAtackRate (): number {
       if (this.realtimeAttackCounter < 1) return 1
-      return Math.max(this.realtimeSuccessfullAtackCounter / this.realtimeAttackCounter, 0.1)
+      return Math.max(this.realtimeSuccessfullAtackCounter / this.realtimeAttackCounter * 1.2, 0.1)
     }
   },
 
@@ -203,6 +203,10 @@ export default defineComponent({
       if (newVal !== undefined) {
         window.require('electron').ipcRenderer.send('updateMaxDosersCount', { newVal })
       }
+    },
+    automaticMode (newVal: boolean) {
+      window.require('electron').ipcRenderer.send('updateStrategy', { newVal: newVal ? 'automatic' : 'manual' })
+      this.maxDosersCount = 32
     }
   },
 
@@ -214,7 +218,7 @@ export default defineComponent({
 
   setup () {
     const ddosEnabled = ref(true)
-    const forceProxy = ref(false)
+    const forceProxy = ref(true)
     const attackCounter = ref(0)
     const successfullAtacks = ref(0)
     const realtimeAttackCounter = ref(0)
